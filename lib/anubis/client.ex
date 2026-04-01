@@ -990,8 +990,7 @@ defmodule Anubis.Client do
     {:reply, State.get_server_info(state), state}
   end
 
-  def handle_call(:await_ready, _from, %{server_capabilities: caps} = state)
-      when not is_nil(caps) do
+  def handle_call(:await_ready, _from, %{server_capabilities: caps} = state) when not is_nil(caps) do
     {:reply, :ok, state}
   end
 
