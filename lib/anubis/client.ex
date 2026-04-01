@@ -562,6 +562,30 @@ defmodule Anubis.Client do
   end
 
   @doc """
+  Blocks until the client has completed the MCP initialization handshake.
+
+  Returns `:ok` once the server capabilities have been received.
+  If the server has already been initialized, returns immediately.
+  Otherwise, the caller is parked until the initialization response arrives
+  or the GenServer call times out.
+
+  ## Options
+
+    * `:timeout` - Maximum time to wait in milliseconds (default: 15s)
+
+  ## Examples
+
+      {:ok, _supervisor} = Anubis.Client.start_link(opts)
+      :ok = Anubis.Client.await_ready(MyApp.MCPClient, timeout: 10_000)
+      {:ok, tools} = Anubis.Client.list_tools(MyApp.MCPClient)
+  """
+  @spec await_ready(t, keyword()) :: :ok
+  def await_ready(client, opts \\ []) do
+    timeout = opts[:timeout] || to_timeout(second: 15)
+    GenServer.call(client, :await_ready, timeout)
+  end
+
+  @doc """
   Sets the minimum log level for the server to send log messages.
 
   ## Parameters
@@ -966,6 +990,15 @@ defmodule Anubis.Client do
     {:reply, State.get_server_info(state), state}
   end
 
+  def handle_call(:await_ready, _from, %{server_capabilities: caps} = state)
+      when not is_nil(caps) do
+    {:reply, :ok, state}
+  end
+
+  def handle_call(:await_ready, from, state) do
+    {:noreply, %{state | ready_waiters: [from | state.ready_waiters]}}
+  end
+
   def handle_call({:register_log_callback, callback}, _from, state) do
     {:reply, :ok, State.set_log_callback(state, callback)}
   end
@@ -1341,7 +1374,8 @@ defmodule Anubis.Client do
 
         :ok = send_notification(state, "notifications/initialized")
 
-        state
+        Enum.each(state.ready_waiters, &GenServer.reply(&1, :ok))
+        %{state | ready_waiters: []}
     end
   end
 
