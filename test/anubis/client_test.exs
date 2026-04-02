@@ -1695,5 +1695,28 @@ defmodule Anubis.ClientTest do
       results = Task.await_many(tasks, 2_000)
       assert results == [:ok, :ok, :ok]
     end
+
+    test "times out when initialization never completes" do
+      stub(Anubis.MockTransport, :send_message, fn _, _, _ -> :ok end)
+
+      client =
+        start_supervised!(%{
+          id: Anubis.Client,
+          start:
+            {Anubis.Client, :start_link_server,
+             [
+               [
+                 transport: [layer: Anubis.MockTransport, name: MockTransport],
+                 client_info: %{"name" => "TestClient", "version" => "1.0.0"},
+                 capabilities: %{}
+               ]
+             ]},
+          restart: :temporary
+        })
+
+      allow(Anubis.MockTransport, self(), client)
+
+      assert catch_exit(Anubis.Client.await_ready(client, timeout: 100))
+    end
   end
 end

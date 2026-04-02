@@ -571,7 +571,7 @@ defmodule Anubis.Client do
 
   ## Options
 
-    * `:timeout` - Maximum time to wait in milliseconds (default: 15s)
+    * `:timeout` - Maximum time to wait in milliseconds (default: 30s)
 
   ## Examples
 
@@ -581,7 +581,7 @@ defmodule Anubis.Client do
   """
   @spec await_ready(t, keyword()) :: :ok
   def await_ready(client, opts \\ []) do
-    timeout = opts[:timeout] || to_timeout(second: 15)
+    timeout = opts[:timeout] || @default_operation_timeout
     GenServer.call(client, :await_ready, timeout)
   end
 
@@ -1271,6 +1271,10 @@ defmodule Anubis.Client do
         "requestId" => request.id,
         "reason" => "client closed"
       })
+    end
+
+    for waiter <- state.ready_waiters do
+      GenServer.reply(waiter, {:error, Error.transport(:client_terminated, %{reason: reason})})
     end
 
     Cache.cleanup(state.client_info["name"])
