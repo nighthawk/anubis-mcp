@@ -23,7 +23,10 @@ defmodule Anubis.MCP.ID do
       :rand.uniform(16_777_216)::24
     >>
 
-    Base.url_encode64(binary)
+    # Encode WITHOUT '=' padding so ids stay in the base64url charset
+    # [A-Za-z0-9_-]. Some MCP servers (e.g. Luciq) validate JSON-RPC request
+    # ids against that pattern and reject the '=' padding with -32600.
+    Base.url_encode64(binary, padding: false)
   end
 
   @doc """
@@ -120,7 +123,7 @@ defmodule Anubis.MCP.ID do
   """
   @spec timestamp_from_id(String.t()) :: integer() | nil
   def timestamp_from_id(id) when is_binary(id) do
-    case Base.url_decode64(id) do
+    case Base.url_decode64(id, padding: false) do
       {:ok, <<timestamp::64, _::48>>} -> timestamp
       _ -> nil
     end
@@ -143,7 +146,7 @@ defmodule Anubis.MCP.ID do
   """
   @spec valid?(term()) :: boolean()
   def valid?(id) when is_binary(id) do
-    case Base.url_decode64(id) do
+    case Base.url_decode64(id, padding: false) do
       {:ok, <<_timestamp::64, _process::24, _random::24>>} -> true
       _ -> false
     end
